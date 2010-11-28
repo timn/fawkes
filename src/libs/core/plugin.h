@@ -25,6 +25,7 @@
 #define __CORE_PLUGIN_H_
 
 #include <core/threading/thread_list.h>
+#include <list>
 
 namespace fawkes {
 
@@ -36,11 +37,15 @@ class Plugin {
   Plugin(Configuration *config);
   virtual ~Plugin();
 
-  void          set_name(const char *name);
-  const char *  name() const;
-  ThreadList &  threads();
+  void                             set_name(const char *name);
+  const char *                     name() const;
+  ThreadList &                     threads();
+  const std::list<const char *> &  dependencies() const;
 
-  virtual bool          persistent();
+  virtual bool                     persistent();
+
+ protected:
+  void add_dependency(const char *plugin_name);
 
  protected:
   /** Thread list member. Initialise this list with the threads that this
@@ -58,8 +63,9 @@ class Plugin {
   Configuration *config;
 
  private:
-  char       *_name_alloc;
-  const char *_name;
+  char                    *__name_alloc;
+  const char              *__name;
+  std::list<const char *>  __dependencies;
 };
 
 /** Plugin loader function for the shared library
@@ -124,19 +130,6 @@ typedef const char *  (* PluginDependenciesFunc) ();
   {							\
     return info_string;					\
   }
-
-/** Set plugin dependencies.
- * @param plugin_list a string with a comma-separated list
- * of plugins that this plugin depends on.
- */
-#define PLUGIN_DEPENDS(plugin_list)			\
-  extern "C"						\
-  const char *						\
-  plugin_depends()					\
-  {							\
-    return plugin_list;					\
-  }
-
 
 
 /** Export plugin.

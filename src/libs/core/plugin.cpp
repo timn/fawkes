@@ -71,8 +71,8 @@ namespace fawkes {
 Plugin::Plugin(Configuration *config)
 {
   this->config = config;
-  _name_alloc = NULL;
-  _name = "PluginNameNotSet";
+  __name_alloc = NULL;
+  __name = "PluginNameNotSet";
 }
 
 /** Virtual destructor */
@@ -81,7 +81,7 @@ Plugin::~Plugin()
   for (ThreadList::iterator i = thread_list.begin(); i != thread_list.end(); ++i) {
     delete *i;
   }
-  if (_name_alloc) free(_name_alloc);
+  if (__name_alloc) free(__name_alloc);
 }
 
 
@@ -121,16 +121,16 @@ Plugin::threads()
 void
 Plugin::set_name(const char *name)
 {
-  if ( _name_alloc )  free(_name_alloc);
+  if ( __name_alloc )  free(__name_alloc);
 
   thread_list.set_name("%s", name);
 
-  _name_alloc = strdup(name);
-  if ( ! _name_alloc ) {
+  __name_alloc = strdup(name);
+  if ( ! __name_alloc ) {
     // We do not want to throw an exception here
-    _name = "OutOfMemoryForPluginName";
+    __name = "OutOfMemoryForPluginName";
   } else {
-    _name = _name_alloc;
+    __name = __name_alloc;
   }
 }
 
@@ -141,8 +141,26 @@ Plugin::set_name(const char *name)
 const char *
 Plugin::name() const
 {
-  return _name;
+  return __name;
 }
 
+
+/** Add another plugin to depend on.
+ * @param plugin_name name of the plugin to depend on
+ */
+void
+Plugin::add_dependency(const char *plugin_name)
+{
+  __dependencies.push_back(plugin_name);
+}
+
+/** Get dependencies of this plugin.
+ * @return list of plugin names this plugin depends on
+ */
+const std::list<const char *> &
+Plugin::dependencies() const
+{
+  return __dependencies;
+}
 
 } // end namespace fawkes
