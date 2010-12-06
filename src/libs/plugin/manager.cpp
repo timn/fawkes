@@ -343,6 +343,20 @@ PluginManager::load(const char *plugin_list)
 }
 
 
+/** Dependency resolution for plugin.
+ * This method calculates the missing dependencies for the given plugin.
+ * It takes the currently loaded plugins into account.
+ * @return list of plugins that must be loaded to resolve the dependencies
+ * of the given plugin. The resolution is done recursively.
+ * @exception Exception thrown if the dependencies of the plugin cannot be
+ * resolved, for example because the plugin depends on a plugin
+ */
+std::list<std::string>
+PluginManager::depsolve(const char *plugin_name)
+{
+}
+
+
 /** Unload plugin.
  * Note that this method does not allow to pass a list of plugins, but it will
  * only accept a single plugin at a time.

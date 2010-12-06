@@ -80,6 +80,8 @@ class PluginManager
   std::list<std::string>                           get_loaded_plugins();
   std::list<std::pair<std::string, std::string> >  get_available_plugins();
 
+  std::list<std::string> depsolve(const char *plugin_name);
+
   void add_listener(PluginManagerListener *listener);
   void remove_listener(PluginManagerListener *listener);
 
