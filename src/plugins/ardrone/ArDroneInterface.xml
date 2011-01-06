@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE interface SYSTEM "interface.dtd">
+<interface name="ArDroneInterface" author="Tim Niemueller" year="2010">
+  <constants>
+    <enum name="Mode">
+      <comment>Open Interface mode.</comment>
+      <item name="MODE_OFF" value="0">No connection.</item>
+      <item name="MODE_PASSIVE" value="1">Passive mode, no control,
+        only listening.</item>
+      <item name="MODE_SAFE" value="2">Control acquired, safety measures
+        in place.</item>
+      <item name="MODE_FULL" value="3">Control acquired, safety measures
+        disabled.</item>
+    </enum>
+  </constants>
+  <data>
+    <comment>
+      AR.Drone hardware interface.      
+    </comment>
+    <field type="Mode" name="mode">Open Interface mode.</field>
+  </data>
+  <message name="Stop">
+    <comment>Stop all motion.</comment>
+  </message>
+</interface>
