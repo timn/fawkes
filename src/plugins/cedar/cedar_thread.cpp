@@ -20,6 +20,7 @@
  */
 
 #include "cedar_thread.h"
+#include "plugin_director_thread.h"
 
 #include <core/threading/mutex_locker.h>
 
@@ -31,11 +32,12 @@ using namespace fawkes;
  */
 
 /** Constructor. */
-CedarThread::CedarThread()
+CedarThread::CedarThread(CedarPluginDirectorThread *pdt)
   : Thread("CedarThread", Thread::OPMODE_WAITFORWAKEUP),
     BlockedTimingAspect(BlockedTimingAspect::WAKEUP_HOOK_THINK),
     CLIPSAspect("cedar", "CEDAR")
 {
+  pdt_ = pdt;
 }
 
 
@@ -82,3 +84,19 @@ CedarThread::loop()
 }
 
 
+void
+CedarThread::clips_get_plugin_info()
+{
+  std::list<std::string> loaded = pdt_->get_loaded_plugins();
+  std::list<std::pair<std::string, std::string> > available =
+    pdt_->get_available_plugins();
+
+  MutexLocker lock(clips.objmutex_ptr());
+  
+  for (auto p : available) {
+    bool is_loaded = (std::find(loaded.begin(), loaded.end(), p.first) != loaded.end());
+    
+    clips->assert_fact_f("(fawkes-plugin (name \"%s\") (state %s))",
+			 p.first.c_str(), is_loaded ? "LOADED" : "AVAILABLE");
+  }
+}
