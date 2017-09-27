@@ -3,7 +3,7 @@
  *
  *  Created: Thu Jan 09 12:35:57 2014
  *  Copyright  2014-2017  Till Hofmann
- *
+ *             2017       Tim Niemueller
  ****************************************************************************/
 
 /*  This program is free software; you can redistribute it and/or modify
@@ -62,13 +62,10 @@ SyncPoint::SyncPoint(string identifier, MultiLogger *logger,
   uint max_waittime_sec /* = 0 */, uint max_waittime_nsec /* = 0 */)
     : identifier_(identifier),
       emit_calls_(CircularBuffer<SyncPointCall>(1000)),
-      wait_for_one_calls_(CircularBuffer<SyncPointCall>(1000)),
-      wait_for_all_calls_(CircularBuffer<SyncPointCall>(1000)),
+      wait_calls_(CircularBuffer<SyncPointCall>(1000)),
       creation_time_(Time()),
       mutex_(new Mutex()),
       mutex_next_wait_(new Mutex()),
-      mutex_wait_for_one_(new Mutex()),
-      cond_wait_for_one_(new WaitCondition(mutex_wait_for_one_)),
       mutex_wait_for_all_(new Mutex()),
       cond_wait_for_all_(new WaitCondition(mutex_wait_for_all_)),
       wait_for_all_timer_running_(false),
@@ -165,13 +162,6 @@ SyncPoint::emit(const std::string & component, bool remove_from_pending)
         get_identifier().c_str());
   }
 
-  // unlock all wait_for_one waiters
-  watchers_wait_for_one_.clear();
-  mutex_wait_for_one_->lock();
-  cond_wait_for_one_->wake_all();
-  mutex_wait_for_one_->unlock();
-
-
   if (!emitters_.count(component)) {
     throw SyncPointNonEmitterCalledEmitException(component.c_str(),
       get_identifier().c_str());
@@ -212,34 +202,25 @@ SyncPoint::emit(const std::string & component, bool remove_from_pending)
 }
 
 /** Wait until SyncPoint is emitted.
- * Either wait until a single emitter has emitted the SyncPoint, or wait
- * until all registered emitters have emitted the SyncPoint.
+ * Waituntil all registered emitters have emitted the SyncPoint.
  * If wait_sec != 0 or wait_nsec !=0, then only wait for
  * wait_sec + wait_nsec*10^-9 seconds and set the SyncPoint's maximum waiting
  * time to the specified time (i.e., on any subsequent wait calls, wait for
  * the specified time until a timeout is triggered).
  * If the maximal wait time has been exceeded, a warning is shown and the
- * SyncPoint is released.
- * If the WakeupType is WAIT_FOR_ALL, then the time limit is only used if there
- * is currently no other component waiting in WAIT_FOR_ALL mode. If there is
+ * SyncPoint is released. The time limit is only used if there
+ * is currently no other component waiting. If there is
  * already a component waiting, that component's wait_time is used to compute
  * the timeout. This ensures that in case a timeout occurs, all waiting
- * components in WAIT_FOR_ALL mode are released simultaneously. Components in
- * WAIT_FOR_ONE mode are treated separately and have their own timeouts.
+ * components are released simultaneously.
  * @param component The identifier of the component waiting for the SyncPoint
- * @param type the wakeup type. If this is set to WAIT_FOR_ONE, wait returns
- * when a single emitter has emitted the SyncPoint. If set to WAIT_FOR_ALL, wait
- * until all registered emitters have emitted the SyncPoint.
  * @param wait_sec number of seconds to wait for the SyncPoint
  * @param wait_nsec number of nanoseconds to wait for the SyncPoint
- * @see SyncPoint::WakeupType
  */
 void
 SyncPoint::wait(const std::string & component,
-  WakeupType type /* = WAIT_FOR_ONE */, uint wait_sec /* = 0 */,
-  uint wait_nsec /* = 0 */)
+                uint wait_sec /* = 0 */, uint wait_nsec /* = 0 */)
 {
-
   MutexLocker ml(mutex_);
 
   std::set<std::string> *watchers;
@@ -247,22 +228,12 @@ SyncPoint::wait(const std::string & component,
   CircularBuffer<SyncPointCall> *calls;
   Mutex *mutex_cond;
   bool *timer_running;
-  // set watchers, cond and calls depending of the Wakeup type
-  if (type == WAIT_FOR_ONE) {
-    watchers = &watchers_wait_for_one_;
-    cond = cond_wait_for_one_;
-    mutex_cond = mutex_wait_for_one_;
-    calls = &wait_for_one_calls_;
-    timer_running = NULL;
-  } else if (type == WAIT_FOR_ALL) {
-    watchers = &watchers_wait_for_all_;
-    cond = cond_wait_for_all_;
-    mutex_cond = mutex_wait_for_all_;
-    timer_running = &wait_for_all_timer_running_;
-    calls = &wait_for_all_calls_;
-  } else {
-    throw SyncPointInvalidTypeException();
-  }
+  // set watchers, cond and calls
+  watchers = &watchers_wait_for_all_;
+  cond = cond_wait_for_all_;
+  mutex_cond = mutex_wait_for_all_;
+  timer_running = &wait_for_all_timer_running_;
+  calls = &wait_calls_;
 
   // check if calling component is registered for this SyncPoint
   if (!watchers_.count(component)) {
@@ -273,11 +244,7 @@ SyncPoint::wait(const std::string & component,
     throw SyncPointMultipleWaitCallsException(component.c_str(), get_identifier().c_str());
   }
 
-  /* if type == WAIT_FOR_ALL but no emitter has registered, we can
-   * immediately return
-   * if type == WAIT_FOR_ONE, we always wait
-   */
-  bool need_to_wait = !emitters_.empty() || type == WAIT_FOR_ONE;
+  bool need_to_wait = !emitters_.empty();
   if (need_to_wait) {
     watchers->insert(component);
   }
@@ -294,45 +261,32 @@ SyncPoint::wait(const std::string & component,
     emit_locker_ = "";
   }
   if (need_to_wait) {
-    if (type == WAIT_FOR_ONE) {
-      ml.unlock();
-      bool timeout;
-      pthread_cleanup_push(cleanup_mutex, mutex_cond);
-      timeout = !cond->reltimed_wait(wait_sec, wait_nsec);
-      pthread_cleanup_pop(1);
-      if (timeout) {
-        ml.relock();
-        handle_default(component, type);
-        ml.unlock();
-      }
-    } else {
-      if (*timer_running) {
-        ml.unlock();
-        pthread_cleanup_push(cleanup_mutex, mutex_cond);
-        cond->wait();
-        pthread_cleanup_pop(1);
-      } else {
-        *timer_running = true;
-        if (wait_sec != 0 || wait_nsec != 0) {
-          max_waittime_sec_ = wait_sec;
-          max_waittime_nsec_ = wait_nsec;
-        }
-        ml.unlock();
-        bool timeout;
-        pthread_cleanup_push(cleanup_mutex, mutex_cond);
-        timeout = !cond->reltimed_wait(max_waittime_sec_, max_waittime_nsec_);
-        pthread_cleanup_pop(1);
-        ml.relock();
-        *timer_running = false;
-        if (timeout) {
-          // wait failed, handle default
-          handle_default(component, type);
-          mutex_cond->lock();
-          cond->wake_all();
-          mutex_cond->unlock();
-        }
-        ml.unlock();
-      }
+	  if (*timer_running) {
+		  ml.unlock();
+		  pthread_cleanup_push(cleanup_mutex, mutex_cond);
+		  cond->wait();
+		  pthread_cleanup_pop(1);
+	  } else {
+		  *timer_running = true;
+		  if (wait_sec != 0 || wait_nsec != 0) {
+			  max_waittime_sec_ = wait_sec;
+			  max_waittime_nsec_ = wait_nsec;
+		  }
+		  ml.unlock();
+		  bool timeout;
+		  pthread_cleanup_push(cleanup_mutex, mutex_cond);
+		  timeout = !cond->reltimed_wait(max_waittime_sec_, max_waittime_nsec_);
+		  pthread_cleanup_pop(1);
+		  ml.relock();
+		  *timer_running = false;
+		  if (timeout) {
+			  // wait failed, handle default
+			  handle_default(component);
+			  mutex_cond->lock();
+			  cond->wake_all();
+			  mutex_cond->unlock();
+		  }
+		  ml.unlock();
     }
   } else {
     ml.unlock();
@@ -343,34 +297,13 @@ SyncPoint::wait(const std::string & component,
   calls->push_back(SyncPointCall(component, start, wait_time));
 }
 
-/** Wait for a single emitter.
- * @param component The identifier of the calling component.
- */
-void
-SyncPoint::wait_for_one(const string & component)
-{
-  wait(component, WAIT_FOR_ONE);
-}
-
 /** Wait for all registered emitters.
  * @param component The identifier of the calling component.
  */
 void
 SyncPoint::wait_for_all(const string & component)
 {
-  wait(component, WAIT_FOR_ALL);
-}
-
-/** Wait for a single emitter for the given time.
- * @param component The identifier of the calling component.
- * @param wait_sec number of seconds to wait
- * @param wait_nsec number of nanoseconds to wait additionally to wait_sec
- */
-void
-SyncPoint::reltime_wait_for_one(const string & component, uint wait_sec,
-  uint wait_nsec)
-{
-  wait(component, SyncPoint::WAIT_FOR_ONE, wait_sec, wait_nsec);
+  wait(component);
 }
 
 /** Wait for all registered emitters for the given time.
@@ -382,7 +315,7 @@ void
 SyncPoint::reltime_wait_for_all(const string & component, uint wait_sec,
   uint wait_nsec)
 {
-  wait(component, SyncPoint::WAIT_FOR_ALL, wait_sec, wait_nsec);
+  wait(component, wait_sec, wait_nsec);
 }
 
 
@@ -483,7 +416,7 @@ SyncPoint::add_watcher(string watcher)
   return watchers_.insert(watcher);
 }
 
-/**
+/** Get watchers.
  * @return all watchers of the SyncPoint
  */
 std::set<std::string>
@@ -492,23 +425,16 @@ SyncPoint::get_watchers() const {
   return watchers_;
 }
 
-/**
- * @return a copy of the wait call buffer with the given type
- * @param type the type of the wait call buffer
+/** Get waiting calls.
+ * @return a copy of the wait call buffer
  */
 CircularBuffer<SyncPointCall>
-SyncPoint::get_wait_calls(WakeupType type /* = WAIT_FOR_ONE */) const {
+SyncPoint::get_wait_calls() const {
   MutexLocker ml(mutex_);
-  if (type == WAIT_FOR_ONE) {
-    return wait_for_one_calls_;
-  } else if (type == WAIT_FOR_ALL) {
-    return wait_for_all_calls_;
-  } else {
-    throw SyncPointInvalidTypeException();
-  }
+  return wait_calls_;
 }
 
-/**
+/** Get emitters.
  * @return a copy of the set of registered emitters
  */
 multiset<string>
@@ -517,7 +443,7 @@ SyncPoint::get_emitters() const
   return emitters_;
 }
 
-/**
+/** Get emit calls.
  * @return a copy of the emit call buffer
  */
 CircularBuffer<SyncPointCall>
@@ -533,17 +459,9 @@ SyncPoint::get_emit_calls() const {
  * @return true if the waiter is currently waiting
  */
 bool
-SyncPoint::watcher_is_waiting(std::string watcher, WakeupType type) const
+SyncPoint::watcher_is_waiting(std::string watcher) const
 {
-  switch (type) {
-    case SyncPoint::WAIT_FOR_ONE:
-      return watchers_wait_for_one_.count(watcher);
-    case SyncPoint::WAIT_FOR_ALL:
-      return watchers_wait_for_all_.count(watcher);
-    default:
-      throw Exception("Unknown watch type %u for syncpoint %s",
-                      type, identifier_);
-  }
+	return watchers_wait_for_all_.count(watcher);
 }
 
 void
@@ -558,7 +476,7 @@ SyncPoint::is_pending(string component) {
 }
 
 void
-SyncPoint::handle_default(string component, WakeupType type)
+SyncPoint::handle_default(string component)
 {
   logger_->log_warn(component.c_str(),
       "Thread time limit exceeded while waiting for syncpoint '%s'. "
@@ -579,21 +497,18 @@ SyncPoint::handle_default(string component, WakeupType type)
     logger_->log_warn(component.c_str(), "bad component: %s",
         bad_components_.begin()->c_str());
   }
-  else if (type == SyncPoint::WAIT_FOR_ALL) {
+  else {
     throw Exception("SyncPoints: component %s defaulted, "
         "but there is no pending emitter. This is probably a bug.",
         component.c_str());
   }
 
   watchers_wait_for_all_.erase(component);
-  watchers_wait_for_one_.erase(component);
 }
 
 void
 SyncPoint::cleanup()
 {
-  delete cond_wait_for_one_;
-  delete mutex_wait_for_one_;
   delete cond_wait_for_all_;
   delete mutex_wait_for_all_;
   delete mutex_next_wait_;
