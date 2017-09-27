@@ -172,39 +172,8 @@ WebviewSyncPointRequestProcessor::all_syncpoints_as_dot(
       }
     }
 
-    // WAIT FOR ONE CALLS
-    CircularBuffer<SyncPointCall> wait_one_calls = (*sp_it)->get_wait_calls(SyncPoint::WAIT_FOR_ONE);
-    // generate call stats
-    std::map<std::string, SyncPointCallStats> wait_one_call_stats;
-    for (CircularBuffer<SyncPointCall>::iterator waitcalls_it = wait_one_calls.begin();
-        waitcalls_it != wait_one_calls.end(); waitcalls_it++) {
-      wait_one_call_stats[waitcalls_it->get_caller()].update_calls(*waitcalls_it);
-    }
-
-    for (std::map<std::string, SyncPointCallStats>::iterator wait_call_stats_it = wait_one_call_stats.begin();
-        wait_call_stats_it != wait_one_call_stats.end(); wait_call_stats_it++) {
-      if (wait_call_stats_it->first == "FawkesMainThread") {
-        continue;
-      }
-      float age = (Time() - wait_call_stats_it->second.get_last_call()).in_sec();
-      if (age < max_age) {
-        graph << "\"" << (*sp_it)->get_identifier() << "\"" << " -> "
-            << "\"" << wait_call_stats_it->first << "\"" << " [label=" << "\""
-            << " avg=" << wait_call_stats_it->second.get_waittime_average() <<  "s"
-            << " age=" << age << "s"
-            << " #calls=" << wait_call_stats_it->second.get_num_calls()
-            //          << " max=" << max_wait_time << "s"
-            << "\"";
-        if ((*sp_it)->watcher_is_waiting(wait_call_stats_it->first, SyncPoint::WAIT_FOR_ONE)) {
-          graph << ",color=\"red\"";
-        }
-        graph << ",style=dotted";
-        graph << "];";
-      }
-    }
-
     // WAIT FOR ALL CALLS
-    CircularBuffer<SyncPointCall> wait_all_calls = (*sp_it)->get_wait_calls(SyncPoint::WAIT_FOR_ALL);
+    CircularBuffer<SyncPointCall> wait_all_calls = (*sp_it)->get_wait_calls();
     // generate call stats
     std::map<std::string, SyncPointCallStats> wait_all_call_stats;
     for (CircularBuffer<SyncPointCall>::iterator waitcalls_it = wait_all_calls.begin();
@@ -226,7 +195,7 @@ WebviewSyncPointRequestProcessor::all_syncpoints_as_dot(
             << " #calls=" << wait_call_stats_it->second.get_num_calls()
             //<< " max=" << max_wait_time << "s"
             << "\"";
-        if ((*sp_it)->watcher_is_waiting(wait_call_stats_it->first, SyncPoint::WAIT_FOR_ALL)) {
+        if ((*sp_it)->watcher_is_waiting(wait_call_stats_it->first)) {
           graph << ",color=\"red\"";
         }
         graph << ",style=dashed";
