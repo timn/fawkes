@@ -39,15 +39,14 @@ namespace fawkes {
 /** Constructor.
  * Use this constructor if there should be an input syncpoint. The input syncpoint
  * will be waited for before every loop.
- * @param type_in type of the input syncpoint
  * @param identifier_in identifier of the input syncpoint
  * @param identifier_out identifier of the output syncpoint.
  *          If this identifier is empty, no output syncpoint will be used.
  */
-SyncPointAspect::SyncPointAspect(SyncPoint::WakeupType type_in, std::string identifier_in,
-    std::string identifier_out /* = "" */)
-  : type_in_(type_in), identifier_in_(identifier_in),
-    identifier_out_(identifier_out), sp_in_(NULL), sp_out_(NULL)
+SyncPointAspect::SyncPointAspect(std::string identifier_in,
+                                 std::string identifier_out /* = "" */)
+	: identifier_in_(identifier_in), identifier_out_(identifier_out),
+	  sp_in_(NULL), sp_out_(NULL)
 {
   add_aspect("SyncPointAspect");
   has_input_syncpoint_ = (identifier_in != "");
@@ -60,8 +59,7 @@ SyncPointAspect::SyncPointAspect(SyncPoint::WakeupType type_in, std::string iden
  * @param identifier_out identifier of the output syncpoint
  */
 SyncPointAspect::SyncPointAspect(std::string identifier_out)
-  : type_in_(SyncPoint::NONE), identifier_in_(""),
-    identifier_out_(identifier_out), sp_in_(NULL), sp_out_(NULL)
+  : identifier_in_(""), identifier_out_(identifier_out), sp_in_(NULL), sp_out_(NULL)
 {
   add_aspect("SyncPointAspect");
   has_input_syncpoint_ = false;
@@ -126,7 +124,7 @@ void
 SyncPointAspect::pre_loop(Thread *thread)
 {
   if (has_input_syncpoint_) {
-    sp_in_->wait(thread->name(), type_in_);
+    sp_in_->wait(thread->name());
   }
 }
 

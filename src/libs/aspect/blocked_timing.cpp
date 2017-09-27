@@ -53,9 +53,8 @@ namespace fawkes {
  * @param wakeup_hook hook when this thread should be woken up
  */
 BlockedTimingAspect::BlockedTimingAspect(WakeupHook wakeup_hook)
-    : SyncPointAspect(SyncPoint::WAIT_FOR_ALL,
-        blocked_timing_hook_to_start_syncpoint(wakeup_hook),
-        blocked_timing_hook_to_end_syncpoint(wakeup_hook))
+    : SyncPointAspect(blocked_timing_hook_to_start_syncpoint(wakeup_hook),
+                      blocked_timing_hook_to_end_syncpoint(wakeup_hook))
 {
   add_aspect("BlockedTimingAspect");
   __wakeup_hook = wakeup_hook;

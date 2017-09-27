@@ -37,7 +37,7 @@ namespace fawkes {
 class SyncPointAspect : public virtual Aspect, public ThreadLoopListener
 {
   public:
-    SyncPointAspect(SyncPoint::WakeupType type_in, std::string identifier_in, std::string identifier_out = "");
+    SyncPointAspect(std::string identifier_in, std::string identifier_out = "");
     SyncPointAspect(std::string out_identifier);
     virtual ~SyncPointAspect();
 
@@ -48,7 +48,6 @@ class SyncPointAspect : public virtual Aspect, public ThreadLoopListener
     void post_loop(Thread *thread);
 
   private:
-    SyncPoint::WakeupType type_in_;
     std::string identifier_in_;
     std::string identifier_out_;
     bool has_input_syncpoint_;
