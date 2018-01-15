@@ -26,6 +26,7 @@
 #include <utils/time/wait.h>
 #include <asoundlib.h>
 #include <cmath>
+#include "test.h"
 
 using namespace fawkes;
 
@@ -59,6 +60,8 @@ FliteSynthThread::init()
 
   bbil_add_message_interface(__speechsynth_if);
   blackboard->register_listener(this);
+
+  Func();
 
   say("Speech synth loaded");
 }

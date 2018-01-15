@@ -22,7 +22,7 @@ ifeq ($(HAVE_FLITE)$(HAVE_ALSA),11)
   LDFLAGS += $(LDFLAGS_FLITE) $(LDFLAGS_ALSA)
   CFLAGS  += $(CFLAGS_FLITE)  $(CFLAGS_ALSA)
   LIBS_flite = m fawkescore fawkesutils fawkesaspects fawkesblackboard \
-	       fawkesinterface SpeechSynthInterface flite flite_cmu_us_kal
+	       fawkesinterface SpeechSynthInterface flite flite_cmu_us_kal test
   OBJS_flite = $(patsubst %.cpp,%.o,$(patsubst qa/%,,$(subst $(SRCDIR)/,,$(wildcard $(SRCDIR)/*.cpp))))
   PLUGINS_all = $(PLUGINDIR)/flite.so
 else
@@ -33,6 +33,9 @@ else
     WARN_TARGETS += warning_alsa
   endif
 endif
+
+%.o: %.go
+	gccgo -fPIC -c -o $(subst ..,__,$@) $<
 
 OBJS_all = $(OBJS_flite)
 
