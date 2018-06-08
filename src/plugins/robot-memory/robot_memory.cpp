@@ -1050,7 +1050,7 @@ RobotMemory::mutex_expire_locks(float max_age_sec)
 
 	try {
 		client->remove(cfg_coord_mutex_collection_, filter_doc,
-		               true, &mongo::WriteConcern::majority);
+		               /* just one */ false, &mongo::WriteConcern::majority);
 
 		return true;
 	} catch (mongo::OperationException &e) {
