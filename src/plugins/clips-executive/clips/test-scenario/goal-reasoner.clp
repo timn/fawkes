@@ -48,7 +48,9 @@
 ; orders. It is then up to action selection and execution to determine
 ; what to do when.
 (defrule goal-reasoner-dispatch
-	?g <- (goal (class TESTGOAL) (mode COMMITTED))
+	?g <- (goal (class TESTGOAL) (mode COMMITTED)
+          (required-resources $?req)
+          (acquired-resources $?acq&:(subsetp ?req ?acq)))
 	=>
 	(modify ?g (mode DISPATCHED))
 )
@@ -82,8 +84,9 @@
 		(delayed-do-for-all-facts ((?a plan-action)) (eq ?a:plan-id ?p:id)
 			(retract ?a)
 		)
-		(retract ?g ?gm)
 	)
+  (retract ?gm)
+  (modify ?g (mode RETRACTED))
 )
 
 (defrule goal-reasoner-cleanup-failed
@@ -103,6 +106,13 @@
 		(modify ?g (mode SELECTED))
 	else
 		(printout t "Goal failed " ?num-tries " times, aborting" crlf)
-		(retract ?g ?gm)
+		(retract ?gm)
+    (modify ?g (mode RETRACTED))
 	)
+)
+
+(defrule goal-reasoner-retract-goal
+  ?g <- (goal (mode RETRACTED) (acquired-resources))
+  =>
+  (retract ?g)
 )
