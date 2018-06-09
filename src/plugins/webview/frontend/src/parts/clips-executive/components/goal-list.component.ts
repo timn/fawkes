@@ -183,6 +183,7 @@ export class GoalListComponent implements OnInit, OnDestroy {
         switch (goal.outcome) {
           case "COMPLETED": return "check";
           case "FAILED": return "error_outline";
+          case "REJECTED": return "report";
           default: return "help";
         }
       }
@@ -191,10 +192,11 @@ export class GoalListComponent implements OnInit, OnDestroy {
         switch (goal.outcome) {
           case "COMPLETED": return "check_circle";
           case "FAILED": return "error";
+          case "REJECTED": return "report";
           default: return "help";
         }
       }
-      case "REJECTED":   return "report";
+      case "RETRACTED":   return "delete";
       default: return "help_outline";
     }
   }
@@ -212,6 +214,7 @@ export class GoalListComponent implements OnInit, OnDestroy {
         switch (goal.outcome) {
           case "COMPLETED": return "ff-success";
           case "FAILED": return "ff-error";
+          case "REJECTED": return "ff-warning";
           default: return "ff-warning";
         }
       }
@@ -220,11 +223,29 @@ export class GoalListComponent implements OnInit, OnDestroy {
         switch (goal.outcome) {
           case "COMPLETED": return "ff-success";
           case "FAILED": return "ff-error";
+          case "REJECTED": return "ff-warning";
           default: return "ff-warning";
         }
       }
-      case "REJECTED":   return "ff-warning";
+      case "RETRACTED":
+        switch (goal.outcome) {
+          case "COMPLETED": return "ff-success";
+          case "FAILED": return "ff-error";
+          case "REJECTED": return "ff-warning";
+          default: return "ff-primary";
+        }
       default: return "ff-warning";
+    }
+  }
+
+  icon_tooltip(goal: Goal): string
+  {
+    switch (goal.mode) {
+      case "FINISHED":
+      case "EVALUATED":
+        return `${goal.mode}|${goal.outcome}`;
+      default:
+        return goal.mode;
     }
   }
 
@@ -315,7 +336,7 @@ export class GoalListComponent implements OnInit, OnDestroy {
       graph += '  "no goals"';
     } else {
       for (let g of this.goals) {
-        let shape = g.type == 'ACHIEVE' ? 'ellipse' : 'box';
+        let shape = g.type == 'ACHIEVE' ? 'box' : 'ellipse';
         let color = '';
 
         switch (g.mode) {
@@ -328,12 +349,62 @@ export class GoalListComponent implements OnInit, OnDestroy {
             switch (g.outcome) {
               case "COMPLETED": color='#A5D6A7'; break;
               case "FAILED":    color='#EF9A9A'; break;
+              case "REJECTED":  color='#FFCC80'; break;
             }
             break;
-          case "REJECTED":   color='#FFCC80'; break;
+          case "RETRACTED":
+            switch (g.outcome) {
+              case "COMPLETED": color='#A5D6A7'; break;
+              case "FAILED":    color='#EF9A9A'; break;
+              case "REJECTED":  color='#FFCC80'; break;
+              default:          color='#eeeeee'; break;
+            }
           default:;
         }
-        graph += `  "${g.id}" [href="/clips-executive/goal/${g.id}", shape=${shape}`;
+
+        let node_label = `<table border="0" cellspacing="2"><tr><td colspan="2" align="center"><b>${g.id}</b></td></tr>`;
+        node_label += `<tr><td align="left"><font color="#444444">Mode:</font></td><td align="left"><font color="#444444">${this.icon_tooltip(g)}</font></td></tr>`;
+
+        if (g['class'] && g['class'] != "") {
+          node_label += `<tr><td align="left"><font color="#444444">Class:</font></td><td align="left"><font color="#444444">${g['class']}</font></td></tr>`;
+        }
+        if (g['sub-type'] && g['sub-type'] != "") {
+          node_label += `<tr><td align="left"><font color="#444444">Sub-type:</font></td><td align="left"><font color="#444444">${g['sub-type']}</font></td></tr>`;
+        }
+        if (g.priority > 0) {
+          node_label += `<tr><td align="left"><font color="#444444">Priority:</font></td><td align="left"><font color="#444444">${g.priority}</font></td></tr>`;
+        }
+        if (g['sub-type'] && g['sub-type'] == 'RETRY-SUBGOAL') {
+          if (g.parameters.length == 2 && g.parameters[0] == 'max-tries' &&
+              g.meta.length == 2 && g.meta[0] == 'num-tries')
+          {
+            node_label += `<tr><td align="left"><font color="#444444">Tries:</font></td><td align="left"><font color="#444444">${g.meta[1]}/${g.parameters[1]}</font></td></tr>`;
+          }
+        }
+				if (g['required-resources'] && g['required-resources'] != "") {
+          node_label += `<tr><td align="left"><font color="#444444">Req Resrc:</font></td><td align="left"><font color="#444444">`;
+					if (g.mode == 'COMMITTED') {
+						let values = [];
+						for (let r of g['required-resources']) {
+							if (g['acquired-resources'].indexOf(r) == -1) {
+								values.push(`<font color="#ff0000">${r}</font>`);
+							} else {
+								values.push(r);
+							}
+						}
+						node_label += values.join(", ");
+					} else {
+						node_label += g['required-resources'].join(", ");
+					}
+					node_label += '</font></td></tr>';
+        }
+				if (g['acquired-resources'] && g['acquired-resources'] != "") {
+					let res_color = (g.mode == 'RETRACTED') ? "#ff0000" : "#444444";
+          node_label += `<tr><td align="left"><font color="#444444">Acq Resrc	:</font></td><td align="left"><font color="${res_color}">${g['acquired-resources'].join(", ")}</font></td></tr>`;
+        }
+        node_label += "</table>";
+
+        graph += `  "${g.id}" [label=<${node_label}>, tooltip="${g.id}", href="/clips-executive/goal/${g.id}", shape=${shape}`;
         if (color != '') {
           graph += `, style="filled", fillcolor="${color}"`;
         }
@@ -394,7 +465,7 @@ export class GoalListComponent implements OnInit, OnDestroy {
       }
     }
     graph += "}";
-    console.log(`Graph: ${graph}`);
+    //console.log(`Graph: ${graph}`);
     this.goals_graph = graph;
   }
 }
