@@ -89,7 +89,7 @@ void EventTriggerManager::check_events()
         //actually call the callback function
         trigger->callback(change);
       }
-    } catch (mongo::UserException &e) {
+    } catch (mongo::DBException &e) {
       logger_->log_error(name.c_str(), "Error while reading the oplog");
     }
     if(trigger->oplog_cursor->isDead())
