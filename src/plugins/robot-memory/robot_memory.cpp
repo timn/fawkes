@@ -866,6 +866,7 @@ RobotMemory::mutex_try_lock(const std::string& name,
 	update_doc.append("$set", update_set.obj());
 
 	try {
+		MutexLocker locker(mutex_);
 		BSONObj new_doc =
 			client->findAndModify(cfg_coord_mutex_collection_,
 			                      filter_doc.obj(), update_doc.obj(),
@@ -883,6 +884,7 @@ RobotMemory::mutex_try_lock(const std::string& name,
       check_doc.append("_id", name);
       check_doc.append("locked", true);
       check_doc.append("locked-by", identity);
+      MutexLocker locker(mutex_);
       BSONObj res_doc  =
         client->findOne(cfg_coord_mutex_collection_, check_doc.obj());
       logger_->log_info(name_, "Checking whether mutex was acquired succeeded");
@@ -946,6 +948,7 @@ RobotMemory::mutex_unlock(const std::string& name,
 	                                                "lock-time" << true))};
 
 	try {
+		MutexLocker locker(mutex_);
 		BSONObj new_doc =
 			client->findAndModify(cfg_coord_mutex_collection_,
 			                      filter_doc, update_doc,
@@ -996,6 +999,7 @@ RobotMemory::mutex_renew_lock(const std::string& name,
 	update_doc.append("$set", update_set.obj());
 
 	try {
+		MutexLocker locker(mutex_);
 		BSONObj new_doc =
 			client->findAndModify(cfg_coord_mutex_collection_,
 			                      filter_doc, update_doc.obj(),
@@ -1077,6 +1081,7 @@ RobotMemory::mutex_expire_locks(float max_age_sec)
 	update_doc.append("$set", update_set.obj());
 
 	try {
+		MutexLocker locker(mutex_);
 		client->update(cfg_coord_mutex_collection_, filter_doc, update_doc.obj(),
 		               /* upsert */ false, /* multi */ true,
 		               &mongo::WriteConcern::majority);
