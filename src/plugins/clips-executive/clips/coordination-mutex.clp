@@ -477,7 +477,7 @@
 	=>
 	(bind ?op (sym-cat (bson-get ?obj "op")))
 
-	;(printout warn "Trigger: " (bson-tostring ?obj) crlf)
+	(printout warn "Trigger: " (bson-tostring ?obj) crlf)
 	(switch ?op
 		(case i then (mutex-trigger-update ?obj))
 		(case u then (mutex-trigger-update ?obj))

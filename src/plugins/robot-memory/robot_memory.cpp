@@ -976,19 +976,25 @@ bool
 RobotMemory::mutex_renew_lock(const std::string& name,
                               std::string identity)
 {
+  MutexLocker locker(mutex_);
+  logger_->log_debug(name_, "RENEW Starting to renew %s", name.c_str());
+  logger_->log_debug(name_, "RENEW 1 %s", name.c_str());
 	mongo::DBClientBase *client =
 		distributed_ ? mongodb_client_distributed_ : mongodb_client_local_;
+  logger_->log_debug(name_, "RENEW 2 %s", name.c_str());
 
 	if (identity.empty()) {
 		HostInfo host_info;
 		identity = host_info.name();
 	}
 
+  logger_->log_debug(name_, "RENEW 3 %s", name.c_str());
 	// here we can add an $or to implement lock timeouts
 	mongo::BSONObj filter_doc{BSON("_id" << name <<
 	                               "locked" << true <<
 	                               "locked-by" << identity)};
 
+  logger_->log_debug(name_, "RENEW 4 %s", name.c_str());
 	// we set all data, even the data which is not actually modified, to
 	// make it easier to process the update in triggers.
 	mongo::BSONObjBuilder update_doc;
@@ -997,22 +1003,27 @@ RobotMemory::mutex_renew_lock(const std::string& name,
 	update_set.append("locked", true);
 	update_set.append("locked-by", identity);
 	update_doc.append("$set", update_set.obj());
+  mongo::BSONObjBuilder fields_doc;
+  fields_doc.append("lock-time", true);
 
+  logger_->log_debug(name_, "RENEW 5 %s", name.c_str());
 	try {
-		MutexLocker locker(mutex_);
+    logger_->log_debug(name_, "RENEW 6 %s", name.c_str());
 		BSONObj new_doc =
 			client->findAndModify(cfg_coord_mutex_collection_,
 			                      filter_doc, update_doc.obj(),
 			                      /* upsert */ false, /* return new */ true,
-			                      /* sort */ BSONObj(), /* fields */ BSONObj(),
+			                      /* sort */ BSONObj(), /* fields */ fields_doc.obj(),
 			                      &mongo::WriteConcern::majority);
-
+    logger_->log_warn(name_, "Renewed lock %s to time %s",
+        name.c_str(), new_doc.getField("lock-time").toString().c_str());
 		return true;
 	} catch (mongo::OperationException &e) {
 		logger_->log_warn(name_, "Renewing lock on mutex %s failed: %s",
 		                  name.c_str(), e.what());
 		return false;
 	}
+  logger_->log_debug(name_, "RENEW 7 %s", name.c_str());
 }
 
 
@@ -1066,9 +1077,11 @@ RobotMemory::mutex_expire_locks(float max_age_sec)
 	using std::chrono::time_point_cast;
 
 	auto max_age_ms = milliseconds(static_cast<unsigned long int>(std::floor(max_age_sec*1000)));
+  logger_->log_warn(name_, "max_age: %li", max_age_ms.count());
 	time_point<high_resolution_clock, milliseconds> expire_before =
 		time_point_cast<milliseconds>(high_resolution_clock::now()) - max_age_ms;
 	mongo::Date_t	expire_before_mdb(expire_before.time_since_epoch().count());
+  logger_->log_warn(name_, "Expire before: %li", expire_before_mdb.asInt64());
 
 	// here we can add an $or to implement lock timeouts
 	mongo::BSONObj filter_doc{BSON("locked" << true <<
