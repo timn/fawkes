@@ -1,45 +1,69 @@
 
-(deftemplate goal-meta
-	(slot goal-id (type SYMBOL))
-	(slot num-tries (type INTEGER))
-)
-
-(defglobal
-	?*GOAL-MAX-TRIES* = 3
-)
-
 ; #  Goal Creation
-(defrule goal-reasoner-create
+(defrule goal-reasoner-parent-create
 	(domain-loaded)
 	(not (goal))
-	(not (goal-already-tried))
+	(not (test-performed))
   (domain-facts-loaded)
 	=>
-	(assert (goal (id (sym-cat TESTGOAL- (gensym*))) (class TESTGOAL)))
+	(bind ?goal-id (sym-cat TEST-PARENT- (gensym*)))
+	(assert (goal (id ?goal-id) (class TESTGOAL-PARENT)
+								;(sub-type RUN-ONE-OF-SUBGOALS)))
+								;(sub-type RUN-ALL-OF-SUBGOALS)))
+								(sub-type TRY-ALL-OF-SUBGOALS)))
+								;(sub-type RETRY-SUBGOAL) (params max-tries 3))
+					;(goal (id (sym-cat TEST-PARENT- (gensym*))) (parent ?goal-id) (class TESTGOAL)))
+
 	; This is just to make sure we formulate the goal only once.
 	; In an actual domain this would be more sophisticated.
-	(assert (goal-already-tried))
+	(assert (test-performed))
 )
 
 
 ; #  Goal Selection
 ; We can choose one or more goals for expansion, e.g., calling
 ; a planner to determine the required steps.
-(defrule goal-reasoner-select
-	?g <- (goal (id ?goal-id) (class TESTGOAL) (mode FORMULATED))
+(defrule goal-reasoner-parent-select
+	?g <- (goal (id ?goal-id) (class TESTGOAL-PARENT) (mode FORMULATED))
 	=>
 	(modify ?g (mode SELECTED))
-	(assert (goal-meta (goal-id ?goal-id)))
+)
+
+; #  Parent Goal Expansion
+; We can choose one or more goals for expansion, e.g., calling
+; a planner to determine the required steps.
+(defrule goal-reasoner-parent-expand
+	?g <- (goal (id ?goal-id) (class TESTGOAL-PARENT) (mode SELECTED))
+	=>
+	(printout t "Expanding " ?goal-id crlf)
+	(assert	(goal (id (sym-cat TESTGOAL- (gensym*))) (parent ?goal-id) (class TESTGOAL)
+								(priority 10)); (required-resources FOO BAR) (acquired-resources FOO BAR))
+					(goal (id (sym-cat TESTGOAL- (gensym*))) (parent ?goal-id) (class TESTGOAL)
+								(priority 20)))
+	(modify ?g (mode EXPANDED))
 )
 
 ; #  Commit to goal (we "intend" it)
 ; A goal might actually be expanded into multiple plans, e.g., by
 ; different planners. This step would allow to commit one out of these
 ; plans.
-(defrule goal-reasoner-commit
-	?g <- (goal (class TESTGOAL) (mode EXPANDED))
+(defrule goal-reasoner-subgoal-commit
+	;?pg <- (goal (id ?id) (meta num-tries ?num-tries))
+	?g <- (goal (parent ?id) (class TESTGOAL) (mode EXPANDED) (priority 10))
 	=>
 	(modify ?g (mode COMMITTED))
+	;(modify ?g (mode FINISHED) (outcome FAILED))
+	; (if (> ?num-tries 1)
+	; then
+	; 	(modify ?g (mode FINISHED) (outcome FAILED))
+	; else
+	; 	(modify ?g (mode FINISHED) (outcome REJECTED))
+	; )
+)
+(defrule goal-reasoner-subgoal-reject
+	?g <- (goal (class TESTGOAL) (mode EXPANDED) (priority 20))
+	=>
+	(modify ?g (mode FINISHED) (outcome FAILED))
 )
 
 ; #  Dispatch goal (action selection and execution now kick in)
@@ -47,62 +71,46 @@
 ; (for different goals), e.g., one per robot, or for multiple
 ; orders. It is then up to action selection and execution to determine
 ; what to do when.
-(defrule goal-reasoner-dispatch
-	?g <- (goal (class TESTGOAL) (mode COMMITTED))
+(defrule goal-reasoner-subgoal-dispatch
+	?g <- (goal (class TESTGOAL) (mode COMMITTED)
+							(required-resources $?req)
+							(acquired-resources $?acq&:(subsetp ?req ?acq)))
 	=>
 	(modify ?g (mode DISPATCHED))
 )
 
 ; #  Goal Monitoring
-(defrule goal-reasoner-evaluate-completed
+(defrule goal-reasoner-subgoal-evaluate-completed
 	?g <- (goal (id ?goal-id) (class TESTGOAL) (mode FINISHED) (outcome COMPLETED))
-	?gm <- (goal-meta (goal-id ?goal-id))
 	=>
 	(printout t "Goal '" ?goal-id "' has been completed, evaluating" crlf)
 	(modify ?g (mode EVALUATED))
 )
 
-(defrule goal-reasoner-evaluate-failed
-	?g <- (goal (id ?goal-id) (class TESTGOAL) (mode FINISHED) (outcome FAILED))
-	?gm <- (goal-meta (goal-id ?goal-id) (num-tries ?num-tries))
+(defrule goal-reasoner-subgoal-evaluate-failed
+	?g <- (goal (id ?goal-id) (class TESTGOAL) (mode FINISHED) (outcome FAILED|REJECTED))
 	=>
 	(printout t "Goal '" ?goal-id "' has failed, evaluating" crlf)
-	(bind ?num-tries (+ ?num-tries 1))
-	(modify ?gm (num-tries ?num-tries))
 	(modify ?g (mode EVALUATED))
 )
 
-; # Goal Clean up
-(defrule goal-reasoner-cleanup-completed
-	?g <- (goal (id ?goal-id) (class TESTGOAL) (mode EVALUATED) (outcome COMPLETED))
-	?gm <- (goal-meta (goal-id ?goal-id) (num-tries ?num-tries))
+; # Parent Goal evaluation
+(defrule goal-reasoner-goal-evaluate
+	?g <- (goal (id ?goal-id) (class TESTGOAL-PARENT) (mode FINISHED))
 	=>
-	(printout t "Goal '" ?goal-id "' has been Evaluated, cleaning up" crlf)
-	(delayed-do-for-all-facts ((?p plan)) (eq ?p:goal-id ?goal-id)
-		(delayed-do-for-all-facts ((?a plan-action)) (eq ?a:plan-id ?p:id)
-			(retract ?a)
-		)
-		(retract ?g ?gm)
-	)
+  (modify ?g (mode EVALUATED))
 )
 
-(defrule goal-reasoner-cleanup-failed
-  ?g <- (goal (id ?goal-id) (class TESTGOAL) (mode EVALUATED) (outcome FAILED))
-  ?gm <- (goal-meta (goal-id ?goal-id) (num-tries ?num-tries))
-  =>
-  (printout t "Goal '" ?goal-id "' has been Evaluated, cleaning up" crlf)
-  (delayed-do-for-all-facts ((?p plan)) (eq ?p:goal-id ?goal-id)
-    (delayed-do-for-all-facts ((?a plan-action)) (eq ?a:plan-id ?p:id)
-      (retract ?a)
-    )
-    (retract ?p)
-  )
-  (if (< ?num-tries ?*GOAL-MAX-TRIES*)
-	then
-		(printout t "Triggering re-expansion" crlf)
-		(modify ?g (mode SELECTED))
-	else
-		(printout t "Goal failed " ?num-tries " times, aborting" crlf)
-		(retract ?g ?gm)
-	)
+; # Parent Goal Clean up
+(defrule goal-reasoner-goal-cleanup-completed
+	?g <- (goal (id ?goal-id) (class TESTGOAL-PARENT) (mode EVALUATED) (outcome COMPLETED))
+	=>
+  (modify ?g (mode RETRACTED))
+)
+
+(defrule goal-reasoner-goal-do-not-cleanup-failed
+	?g <- (goal (id ?goal-id) (class TESTGOAL-PARENT) (mode EVALUATED) (outcome FAILED|REJECTED)
+							(message ?message))
+	=>
+  (modify ?g (message (str-cat ?message "  NOT cleaning up because failed, test case")))
 )

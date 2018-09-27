@@ -31,6 +31,12 @@ clips-executive:
   # the lock just due to an oversight.
   steal-skiller-control: true
 
+  # If set to true, goals will be cleaned automatically when they
+  # reach the RETRACTED state. Disabling be useful for debugging.
+  # You need to manually cleanup goals (and associated data such as
+  # plans) to keep things tidy.
+  automatic-goal-retraction: true
+
   # Directory where to look for CLIPS files
   clips-dirs: ["@BASEDIR@/src/clips-specs"]
 
@@ -80,6 +86,10 @@ clips-executive:
         # stage-2 is domain-independent CX initialization
         # It contains a set of fixed items loaded. Custom extensions may
         # be loaded in this stage. They are loaded *after* the defaults.
+        stage-2:
+          - name: goal-types
+            files: ["goals/run-one.clp", "goals/run-all.clp", "goals/try-all.clp", "goals/retry.clp"]
+
 
         # Domain-specific CX initialization.
         # In the third stage load domain-specific files such as domain
