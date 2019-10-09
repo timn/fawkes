@@ -275,7 +275,7 @@ ifeq ($(DO_32BIT_BUILD),1)
 endif
 
 ifeq ($(ARCH),x86_64)
-  ifeq ($(DISTRO),fedora)
+  ifneq ($(DISTRO),ubuntu)
     LIB_SUFFIX=64
   endif
 endif
