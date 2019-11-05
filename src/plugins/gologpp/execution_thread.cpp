@@ -90,10 +90,6 @@ GologppThread::init()
 	global_scope().register_type(new ListType(*global_scope().lookup_type(NumberType::name())));
 	global_scope().register_type(new ListType(*global_scope().lookup_type(SymbolType::name())));
 
-	logger->log_info(name(), "Parsing %s...", prog_file.c_str());
-	main_prog_ = gologpp::parser::parse_file(prog_file);
-	logger->log_info(name(), "... parsing done");
-
 	logger->log_info(name(), "Initializing ReadyLog context...");
 
 	exog_mgr_ = new ExogManager(this, config, spec_cfg_prefix, blackboard, logger);
@@ -103,6 +99,10 @@ GologppThread::init()
 	options.guitrace = options.trace;
 	gologpp::ReadylogContext::init(
 	  options, std::make_unique<GologppFawkesBackend>(config, spec_cfg_prefix, logger, blackboard));
+
+	logger->log_info(name(), "Parsing %s...", prog_file.c_str());
+	main_prog_ = gologpp::parser::parse_file(prog_file);
+	logger->log_info(name(), "... parsing done");
 
 	logger->log_info(name(), "... initialization done");
 }

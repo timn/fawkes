@@ -22,6 +22,9 @@
 
 #include "utils.h"
 
+#include <golog++/model/action.h>
+#include <golog++/model/effect_axiom.h>
+#include <golog++/model/fluent.h>
 #include <logging/logger.h>
 
 namespace fawkes {
@@ -37,6 +40,20 @@ namespace gpp {
  */
 PrintActionExecutor::PrintActionExecutor(Logger *logger) : ActionExecutor(logger)
 {
+	auto action_scope = new gologpp::Scope(gologpp::global_scope());
+	auto message_var  = action_scope->get_var(gologpp::VarDefinitionMode::FORCE,
+                                           gologpp::StringType::name(),
+                                           "message");
+	auto level_var    = action_scope->get_var(gologpp::VarDefinitionMode::FORCE,
+                                         gologpp::SymbolType::name(),
+                                         "log_level");
+	std::vector<std::shared_ptr<gologpp::Variable>> params = {level_var, message_var};
+	gologpp::global_scope().define_global<gologpp::Action>(
+	  action_scope, std::string{}, "msg", params, boost::none, boost::none, boost::none, boost::none);
+	gologpp::global_scope().define_domain("log_level",
+	                                      gologpp::StringType::name(),
+	                                      gologpp::Domain());
+	level_var->set_domain("log_level");
 }
 
 /** Destructor. */
@@ -47,7 +64,7 @@ PrintActionExecutor::~PrintActionExecutor()
 bool
 PrintActionExecutor::can_execute_activity(std::shared_ptr<gologpp::Activity> activity) const
 {
-	return activity->mapped_name() == "print";
+	return activity->mapped_name() == "msg";
 }
 
 void
