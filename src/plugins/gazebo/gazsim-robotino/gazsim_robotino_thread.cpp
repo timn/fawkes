@@ -78,6 +78,7 @@ RobotinoSimThread::init()
 	//Open interfaces
 	motor_if_  = blackboard->open_for_writing<MotorInterface>("Robotino");
 	switch_if_ = blackboard->open_for_writing<fawkes::SwitchInterface>("Robotino Motor");
+	sens_if_   = blackboard->open_for_writing<RobotinoSensorInterface>("Robotino");
 	imu_if_    = blackboard->open_for_writing<IMUInterface>("IMU Robotino");
 
 	//Create suscribers
@@ -87,6 +88,11 @@ RobotinoSimThread::init()
 	gyro_sub_ = gazebonode->Subscribe(config->get_string("/gazsim/topics/gyro"),
 	                                  &RobotinoSimThread::on_gyro_msg,
 	                                  this);
+	gripper_has_puck_sub_ =
+	  gazebonode->Subscribe(config->get_string("/gazsim/topics/gripper-has-puck"),
+	                        &RobotinoSimThread::on_gripper_has_puck_msg,
+	                        this);
+
 	//Create publishers
 	motor_move_pub_ =
 	  gazebonode->Advertise<msgs::Vector3d>(config->get_string("/gazsim/topics/motor-move"));
@@ -95,6 +101,11 @@ RobotinoSimThread::init()
 	//enable motor by default
 	switch_if_->set_enabled(true);
 	switch_if_->write();
+
+	// puck sensor connected to first 2 inputs of RobotinoInterface
+	sens_if_->set_digital_in(0, false);
+	sens_if_->set_digital_in(1, false);
+	sens_if_->write();
 
 	imu_if_->set_frame(cfg_frame_imu_.c_str());
 	imu_if_->set_linear_acceleration(0, -1.);
@@ -341,4 +352,12 @@ RobotinoSimThread::on_gyro_msg(ConstVector3dPtr &msg)
 	gyro_timestamp_buffer_[gyro_buffer_index_new_] = clock->now();
 	gyro_available_                                = true;
 	new_data_                                      = true;
+}
+
+void
+RobotinoSimThread::on_gripper_has_puck_msg(ConstIntPtr &msg)
+{
+	// 1 means the gripper has a puck 0 not
+	sens_if_->set_digital_in(1, msg->data() > 0);
+	sens_if_->write();
 }

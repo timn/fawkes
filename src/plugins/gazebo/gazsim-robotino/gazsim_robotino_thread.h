@@ -47,6 +47,7 @@ namespace fawkes {
 class BatteryInterface;
 class IMUInterface;
 class MotorInterface;
+class RobotinoSensorInterface;
 class SwitchInterface;
 } // namespace fawkes
 
@@ -76,14 +77,17 @@ private:
 	gazebo::transport::SubscriberPtr infrared_puck_sensor_sub_;
 	gazebo::transport::SubscriberPtr gripper_laser_left_sensor_sub_;
 	gazebo::transport::SubscriberPtr gripper_laser_right_sensor_sub_;
+	gazebo::transport::SubscriberPtr gripper_has_puck_sub_;
 	gazebo::transport::SubscriberPtr pos_sub_;
 
 	//Handler functions for incoming messages
 	void on_gyro_msg(ConstVector3dPtr &msg);
 	void on_infrared_puck_sensor_msg(ConstLaserScanStampedPtr &msg);
+	void on_gripper_has_puck_msg(ConstIntPtr &msg);
 	void on_pos_msg(ConstPosePtr &msg);
 
 	//provided interfaces
+	fawkes::RobotinoSensorInterface *sens_if_;
 	fawkes::MotorInterface * motor_if_;
 	fawkes::SwitchInterface *switch_if_;
 	fawkes::IMUInterface *   imu_if_;
