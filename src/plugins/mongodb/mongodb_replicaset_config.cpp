@@ -389,11 +389,11 @@ MongoDBReplicaSetConfig::rs_status(bsoncxx::document::value &reply)
 				}
 			}
 			std::set<std::string> rs_in = rs_get_members(reply).first;
-			std::string rs_members;
-			for(const auto &member : rs_in) {
+			std::string           rs_members;
+			for (const auto &member : rs_in) {
 				rs_members += member + " ";
 			}
-			status.members = rs_members;
+			status.members        = rs_members;
 			status.primary_status = have_primary ? MongoDBManagedReplicaSetInterface::HAVE_PRIMARY
 			                                     : MongoDBManagedReplicaSetInterface::NO_PRIMARY;
 			status.member_status = self_status;
@@ -459,11 +459,10 @@ MongoDBReplicaSetConfig::rs_get_config(bsoncxx::document::value &rs_config)
 	}
 }
 
-	std::pair<std::set<std::string>, std::set<std::string>>
+std::pair<std::set<std::string>, std::set<std::string>>
 MongoDBReplicaSetConfig::rs_get_members(const bsoncxx::document::view &status_reply)
 {
 	using namespace std::chrono_literals;
-
 	std::set<std::string> in_rs, unresponsive, new_alive, members;
 	bsoncxx::array::view  members_view{status_reply["members"].get_array().value};
 	for (bsoncxx::array::element member : members_view) {
@@ -481,7 +480,7 @@ MongoDBReplicaSetConfig::rs_get_members(const bsoncxx::document::view &status_re
 			}
 		}
 	}
-	return std::make_pair(in_rs,unresponsive);
+	return std::make_pair(in_rs, unresponsive);
 }
 
 void
@@ -492,7 +491,11 @@ MongoDBReplicaSetConfig::rs_monitor(const bsoncxx::document::view &status_reply)
 
 	std::set<std::string> members;
 	std::set<std::string> new_alive;
-	std::set_union(in_rs.begin(), in_rs.end(), unresponsive.begin(), unresponsive.end(),std::inserter(members, members.begin()));
+	std::set_union(in_rs.begin(),
+	               in_rs.end(),
+	               unresponsive.begin(),
+	               unresponsive.end(),
+	               std::inserter(members, members.begin()));
 	std::set<std::string> not_member;
 	std::set_difference(hosts_.begin(),
 	                    hosts_.end(),
@@ -527,7 +530,7 @@ MongoDBReplicaSetConfig::rs_monitor(const bsoncxx::document::view &status_reply)
 			} else if (key_it->key() == "members") {
 				bsoncxx::array::view members_view{config["members"].get_array().value};
 				new_config.append(basic::kvp("members", [&](basic::sub_array array) {
-				int                   last_member_id{0};
+					int last_member_id{0};
 					for (bsoncxx::array::element member : members_view) {
 						std::string host = member["host"].get_utf8().value.to_string();
 						if (hosts_.find(host) == hosts_.end()) {

@@ -92,10 +92,11 @@ private:
 	// TODO: update signature
 	ReplicaSetStatus rs_status(bsoncxx::document::value &reply);
 	void             rs_init();
-	std::pair<std::set<std::string>,std::set<std::string>> rs_get_members(const bsoncxx::document::view &reply);
-	void             rs_monitor(const bsoncxx::document::view &reply);
-	bool             check_alive(const std::string &h);
-	bool             rs_get_config(bsoncxx::document::value &rs_config);
+	std::pair<std::set<std::string>, std::set<std::string>>
+	     rs_get_members(const bsoncxx::document::view &reply);
+	void rs_monitor(const bsoncxx::document::view &reply);
+	bool check_alive(const std::string &h);
+	bool rs_get_config(bsoncxx::document::value &rs_config);
 
 	/** Stub to see name in backtrace for easier debugging. @see Thread::run() */
 protected:
