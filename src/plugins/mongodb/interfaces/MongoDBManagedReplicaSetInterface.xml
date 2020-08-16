@@ -88,6 +88,9 @@
     <field type="ReplicaSetPrimaryStatus" name="primary_status">
 	    Status of the replica set regarding a primary.
     </field>
+    <field type="string" length="1024" name="members">
+	    All members of the replica set.
+    </field>
     <field type="string" length="1024" name="error_msg">
 	    A message describing an error in more detail.
     </field>

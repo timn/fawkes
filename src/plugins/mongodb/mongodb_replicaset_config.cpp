@@ -321,6 +321,7 @@ MongoDBReplicaSetConfig::loop()
 	if (last_status_ != status) {
 		rs_status_if_->set_member_status(status.member_status);
 		rs_status_if_->set_primary_status(status.primary_status);
+		rs_status_if_->set_members(status.members.c_str());
 		rs_status_if_->set_error_msg(status.error_msg.c_str());
 		rs_status_if_->write();
 
@@ -387,6 +388,12 @@ MongoDBReplicaSetConfig::rs_status(bsoncxx::document::value &reply)
 					}
 				}
 			}
+			std::set<std::string> rs_in = rs_get_members(reply).first;
+			std::string rs_members;
+			for(const auto &member : rs_in) {
+				rs_members += member + " ";
+			}
+			status.members = rs_members;
 			status.primary_status = have_primary ? MongoDBManagedReplicaSetInterface::HAVE_PRIMARY
 			                                     : MongoDBManagedReplicaSetInterface::NO_PRIMARY;
 			status.member_status = self_status;
@@ -452,18 +459,15 @@ MongoDBReplicaSetConfig::rs_get_config(bsoncxx::document::value &rs_config)
 	}
 }
 
-void
-MongoDBReplicaSetConfig::rs_monitor(const bsoncxx::document::view &status_reply)
+	std::pair<std::set<std::string>, std::set<std::string>>
+MongoDBReplicaSetConfig::rs_get_members(const bsoncxx::document::view &status_reply)
 {
 	using namespace std::chrono_literals;
 
 	std::set<std::string> in_rs, unresponsive, new_alive, members;
-	int                   last_member_id{0};
 	bsoncxx::array::view  members_view{status_reply["members"].get_array().value};
 	for (bsoncxx::array::element member : members_view) {
 		std::string member_name = member["name"].get_utf8().value.to_string();
-		members.insert(member_name);
-		last_member_id = std::max(int(member["_id"].get_int32()), last_member_id);
 		if (member["self"] && member["self"].get_bool()) {
 			in_rs.insert(member_name);
 		} else {
@@ -477,6 +481,18 @@ MongoDBReplicaSetConfig::rs_monitor(const bsoncxx::document::view &status_reply)
 			}
 		}
 	}
+	return std::make_pair(in_rs,unresponsive);
+}
+
+void
+MongoDBReplicaSetConfig::rs_monitor(const bsoncxx::document::view &status_reply)
+{
+	using namespace std::chrono_literals;
+	const auto [in_rs, unresponsive] = rs_get_members(status_reply);
+
+	std::set<std::string> members;
+	std::set<std::string> new_alive;
+	std::set_union(in_rs.begin(), in_rs.end(), unresponsive.begin(), unresponsive.end(),std::inserter(members, members.begin()));
 	std::set<std::string> not_member;
 	std::set_difference(hosts_.begin(),
 	                    hosts_.end(),
@@ -511,6 +527,7 @@ MongoDBReplicaSetConfig::rs_monitor(const bsoncxx::document::view &status_reply)
 			} else if (key_it->key() == "members") {
 				bsoncxx::array::view members_view{config["members"].get_array().value};
 				new_config.append(basic::kvp("members", [&](basic::sub_array array) {
+				int                   last_member_id{0};
 					for (bsoncxx::array::element member : members_view) {
 						std::string host = member["host"].get_utf8().value.to_string();
 						if (hosts_.find(host) == hosts_.end()) {
@@ -526,6 +543,7 @@ MongoDBReplicaSetConfig::rs_monitor(const bsoncxx::document::view &status_reply)
 						} else {
 							logger->log_warn(name(), "Removing RS member '%s'", host.c_str());
 						}
+						last_member_id = std::max(int(member["_id"].get_int32()), last_member_id);
 					}
 					for (const std::string &h : new_alive) {
 						logger->log_info(name(), "Adding new RS member '%s'", h.c_str());

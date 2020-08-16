@@ -34,6 +34,7 @@
 #include <mongocxx/client.hpp>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace fawkes {
@@ -77,6 +78,7 @@ private:
 	{
 		fawkes::MongoDBManagedReplicaSetInterface::ReplicaSetMemberStatus  member_status;
 		fawkes::MongoDBManagedReplicaSetInterface::ReplicaSetPrimaryStatus primary_status;
+		std::string                                                        members;
 		std::string                                                        error_msg;
 
 		bool
@@ -90,6 +92,7 @@ private:
 	// TODO: update signature
 	ReplicaSetStatus rs_status(bsoncxx::document::value &reply);
 	void             rs_init();
+	std::pair<std::set<std::string>,std::set<std::string>> rs_get_members(const bsoncxx::document::view &reply);
 	void             rs_monitor(const bsoncxx::document::view &reply);
 	bool             check_alive(const std::string &h);
 	bool             rs_get_config(bsoncxx::document::value &rs_config);
