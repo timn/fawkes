@@ -249,14 +249,28 @@
    true by removing it recursively. If it is a negation, remove it recursively.
    If it's a conjunction, only remove the conjunct."
   (?precond-name)
-  (do-for-fact
-    ((?precond domain-atomic-precondition) (?parent domain-precondition))
-    (and (eq ?precond:name ?precond-name) (eq ?precond:part-of ?parent:name))
-    (if (or (eq ?parent:type disjunction) (eq ?parent:type negation)) then
-      (remove-precondition ?parent:name)
+  (bind ?atomic (find-fact ((?precond domain-atomic-precondition))
+                           (eq ?precond:name ?precond-name)))
+  (if (> (length$ ?atomic) 0)
+   then
+    (bind ?atomic (nth$ 1 ?atomic))
+    (do-for-fact ((?parent domain-precondition))
+                 (eq (fact-slot-value ?atomic part-of) ?parent:name)
+      (if (or (eq ?parent:type disjunction) (eq ?parent:type negation)) then
+        (remove-precondition ?parent:name)
+      )
     )
-    (retract ?precond)
-  )
+    (retract ?atomic)
+   else
+    (do-for-fact
+      ((?precond domain-precondition) (?parent domain-precondition))
+      (and (eq ?precond:name ?precond-name) (eq ?precond:part-of ?parent:name))
+      (if (or (eq ?parent:type disjunction) (eq ?parent:type negation)) then
+        (remove-precondition ?parent:name)
+      )
+      (retract ?precond)
+    )
+ )
 )
 
 (deffunction domain-retract-grounding
